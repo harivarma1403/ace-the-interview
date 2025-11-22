@@ -1,0 +1,199 @@
+/**
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for the Ace the Interview application.
+ * All data is nested under /users/{userId}, ensuring only the authenticated user can access their own data.
+ *
+ * Data Structure:
+ * - /users/{userId}: User profiles, accessible only by the user themselves.
+ * - /users/{userId}/interviewSessions/{interviewSessionId}: Interview sessions belonging to a specific user.
+ * - /users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}: Questions within an interview session.
+ * - /users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}/answer: User's answer to a question.
+ * - /users/{userId}/interviewSessions/{interviewSessionId}/feedbackReport: Feedback report for an interview session.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed.
+ * - All write operations require a verified user identity (request.auth != null).
+ * - Read and write access to a user's data tree is restricted to the user themselves, based on path-based ownership.
+ *
+ * Denormalization for Authorization:
+ *  - The data structure denormalizes ownership by nesting all data under the /users/{userId} path. This avoids costly `get()` calls in security rules.
+ *  - Each document in the subcollections includes a `userId` field matching the path parameter to enforce ownership.
+ *
+ * Structural Segregation:
+ * - All user-specific data is segregated under the /users/{userId} collection, ensuring a consistent security posture for all documents within that user's data tree.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Secure user profiles. Only the authenticated user can access their own profile.
+     * @path /users/{userId}
+     * @allow (create) - User with matching ID can create their own profile: request.auth.uid == 'user123' and request.resource.data.id == 'user123'
+     * @allow (get, update, delete) - Authenticated user can access their own profile: request.auth.uid == 'user123'
+     * @deny (create) - User cannot create a profile for another user: request.auth.uid == 'user456' and request.resource.data.id == 'user123'
+     * @deny (get, update, delete) - User cannot access another user's profile: request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      // Helper function to check if the user is signed in
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Helper function to check if the authenticated user is the owner of the document
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+       // Helper function to check if the authenticated user is the owner of the existing document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not allowed
+
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secure interview sessions for a specific user.
+     * Only the authenticated user can access their own interview sessions.
+     * @path /users/{userId}/interviewSessions/{interviewSessionId}
+     * @allow (create) - User with matching ID can create a session: request.auth.uid == 'user123' and request.resource.data.userId == 'user123'
+     * @allow (get, update, delete) - Authenticated user can access their own sessions: request.auth.uid == 'user123'
+     * @deny (create) - User cannot create a session for another user: request.auth.uid == 'user456' and request.resource.data.userId == 'user123'
+     * @deny (get, update, delete) - User cannot access another user's sessions: request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     */
+    match /users/{userId}/interviewSessions/{interviewSessionId} {
+      // Helper function to check if the user is signed in
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Helper function to check if the authenticated user is the owner of the document
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+       // Helper function to check if the authenticated user is the owner of the existing document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Secure interview questions for a specific interview session.
+       * Only the authenticated user can access questions related to their sessions.
+       * @path /users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}
+       * @allow (create) - User with matching ID can create a question: request.auth.uid == 'user123'
+       * @allow (get, update, delete) - Authenticated user can access their own questions: request.auth.uid == 'user123'
+       * @deny (create) - User cannot create a question for another user: request.auth.uid == 'user456'
+       * @deny (get, update, delete) - User cannot access another user's questions: request.auth.uid == 'user456'
+       * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+       */
+      match /questions/{questionId} {
+        // Helper function to check if the user is signed in
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        // Helper function to check if the authenticated user is the owner of the document
+        function isOwner(userId) {
+          return isSignedIn() && request.auth.uid == userId;
+        }
+
+         // Helper function to check if the authenticated user is the owner of the existing document
+        function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null;
+        }
+
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+
+        /**
+         * @description Secure user's answer to a specific interview question.
+         * Only the authenticated user can access answers related to their sessions.
+         * @path /users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}/answer
+         * @allow (create) - User with matching ID can create an answer: request.auth.uid == 'user123'
+         * @allow (get, update, delete) - Authenticated user can access their own answer: request.auth.uid == 'user123'
+         * @deny (create) - User cannot create an answer for another user: request.auth.uid == 'user456'
+         * @deny (get, update, delete) - User cannot access another user's answer: request.auth.uid == 'user456'
+         * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+         */
+        match /answer {
+          // Helper function to check if the user is signed in
+          function isSignedIn() {
+            return request.auth != null;
+          }
+
+          // Helper function to check if the authenticated user is the owner of the document
+          function isOwner(userId) {
+            return isSignedIn() && request.auth.uid == userId;
+          }
+
+           // Helper function to check if the authenticated user is the owner of the existing document
+          function isExistingOwner(userId) {
+            return isOwner(userId) && resource != null;
+          }
+
+          allow get: if isOwner(userId);
+          allow list: if false; // Only one answer per question, no listing required
+
+          allow create: if isOwner(userId);
+          allow update: if isExistingOwner(userId);
+          allow delete: if isExistingOwner(userId);
+        }
+      }
+
+      /**
+       * @description Secure feedback report for a specific interview session.
+       * Only the authenticated user can access feedback reports related to their sessions.
+       * @path /users/{userId}/interviewSessions/{interviewSessionId}/feedbackReport
+       * @allow (create) - User with matching ID can create a feedback report: request.auth.uid == 'user123'
+       * @allow (get, update, delete) - Authenticated user can access their own feedback report: request.auth.uid == 'user123'
+       * @deny (create) - User cannot create a feedback report for another user: request.auth.uid == 'user456'
+       * @deny (get, update, delete) - User cannot access another user's feedback report: request.auth.uid == 'user456'
+       * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+       */
+      match /feedbackReport {
+        // Helper function to check if the user is signed in
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        // Helper function to check if the authenticated user is the owner of the document
+        function isOwner(userId) {
+          return isSignedIn() && request.auth.uid == userId;
+        }
+
+         // Helper function to check if the authenticated user is the owner of the existing document
+        function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null;
+        }
+
+        allow get: if isOwner(userId);
+        allow list: if false; // Only one report per session, no listing required
+
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+  }
+}

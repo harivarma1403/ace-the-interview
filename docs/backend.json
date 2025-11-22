@@ -1,0 +1,284 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Ace the Interview platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "createdAt"
+      ]
+    },
+    "InterviewSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InterviewSession",
+      "type": "object",
+      "description": "Represents a single interview simulation session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the InterviewSession entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N InterviewSession)"
+        },
+        "jobDescription": {
+          "type": "string",
+          "description": "The job description used to generate the interview questions."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Timestamp indicating when the interview session started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "Timestamp indicating when the interview session ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "jobDescription",
+        "startTime",
+        "endTime"
+      ]
+    },
+    "Question": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Question",
+      "type": "object",
+      "description": "Represents a single interview question within a session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Question entity."
+        },
+        "interviewSessionId": {
+          "type": "string",
+          "description": "Reference to InterviewSession. (Relationship: InterviewSession 1:N Question)"
+        },
+        "questionText": {
+          "type": "string",
+          "description": "The text of the interview question."
+        },
+        "order": {
+          "type": "number",
+          "description": "The order in which the question was asked during the interview."
+        }
+      },
+      "required": [
+        "id",
+        "interviewSessionId",
+        "questionText",
+        "order"
+      ]
+    },
+    "Answer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Answer",
+      "type": "object",
+      "description": "Represents the user's answer to a specific interview question.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Answer entity."
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Reference to Question. (Relationship: Question 1:1 Answer)"
+        },
+        "answerText": {
+          "type": "string",
+          "description": "The text of the user's answer."
+        },
+        "recordedAudioUrl": {
+          "type": "string",
+          "description": "URL of the recorded audio for the answer (optional).",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "questionId",
+        "answerText"
+      ]
+    },
+    "FeedbackReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FeedbackReport",
+      "type": "object",
+      "description": "Represents the feedback report generated for an interview session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FeedbackReport entity."
+        },
+        "interviewSessionId": {
+          "type": "string",
+          "description": "Reference to InterviewSession. (Relationship: InterviewSession 1:1 FeedbackReport)"
+        },
+        "overallFeedback": {
+          "type": "string",
+          "description": "Overall feedback on the interview performance."
+        },
+        "pdfReportUrl": {
+          "type": "string",
+          "description": "URL where the generated PDF report is stored.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "interviewSessionId",
+        "overallFeedback",
+        "pdfReportUrl"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Path-based ownership ensures only the user can access their own profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/interviewSessions/{interviewSessionId}",
+        "definition": {
+          "entityName": "InterviewSession",
+          "schema": {
+            "$ref": "#/backend/entities/InterviewSession"
+          },
+          "description": "Stores interview sessions for a specific user. Path-based ownership ensures only the user can access their interview sessions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "interviewSessionId",
+              "description": "The unique identifier of the interview session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}",
+        "definition": {
+          "entityName": "Question",
+          "schema": {
+            "$ref": "#/backend/entities/Question"
+          },
+          "description": "Stores interview questions for a specific interview session. Path-based ownership ensures only the user can access questions related to their sessions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "interviewSessionId",
+              "description": "The unique identifier of the interview session."
+            },
+            {
+              "name": "questionId",
+              "description": "The unique identifier of the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/interviewSessions/{interviewSessionId}/questions/{questionId}/answer",
+        "definition": {
+          "entityName": "Answer",
+          "schema": {
+            "$ref": "#/backend/entities/Answer"
+          },
+          "description": "Stores the user's answer to a specific interview question. Path-based ownership ensures only the user can access answers related to their sessions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "interviewSessionId",
+              "description": "The unique identifier of the interview session."
+            },
+            {
+              "name": "questionId",
+              "description": "The unique identifier of the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/interviewSessions/{interviewSessionId}/feedbackReport",
+        "definition": {
+          "entityName": "FeedbackReport",
+          "schema": {
+            "$ref": "#/backend/entities/FeedbackReport"
+          },
+          "description": "Stores the feedback report for a specific interview session. Path-based ownership ensures only the user can access feedback reports related to their sessions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "interviewSessionId",
+              "description": "The unique identifier of the interview session."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure Authorization Independence, DBAC, and QAPs. User data is stored under `/users/{userId}` ensuring path-based ownership. Interview sessions, questions, answers, and feedback reports are nested under the user, maintaining clear ownership and simplifying security rules. This structure avoids the need for `get()` calls in security rules, facilitating atomic operations. Segregation is achieved by storing all user-related data under their respective `userId` namespace, ensuring that all documents within these collections share the same security posture. QAPs are supported through this segregation, enabling secure list operations within a user's data.  Timestamps are stored directly on data to enforce invariants."
+  }
+}
